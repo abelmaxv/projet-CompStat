@@ -134,16 +134,12 @@ class HVAE(nnx.Module):
 
 
 if __name__ == "__main__":
-# 1. Setup dimensions and dummy data
     latent_dim = 2
     num_samples = 10
     key = jr.PRNGKey(42)
     
-    # Generate dummy data (N samples of dimension latent_dim)
     dummy_data = jr.normal(key, (num_samples, latent_dim))
-    
-    # 2. Initialize parameters with correct shapes (using jnp arrays)
-    # Delta and log_sigma should match the latent dimension
+
     init_params = {
         "Delta": jnp.zeros(latent_dim), 
         "log_sigma": jnp.zeros(latent_dim), 
@@ -151,15 +147,13 @@ if __name__ == "__main__":
         "logit_beta0": jnp.array(0.0)
     }
     
-    # 3. Instantiate model and NNX RNGs
-    # K=5 leapfrog steps for a quick check
+
     model = HVAE(dim=latent_dim, K=5, param_init=init_params)
     rngs = nnx.Rngs(42)
     
     print("--- Model Structure ---")
     nnx.display(model)
     
-    # 4. Test ELBO computation
 
 
     def test_step(model, data, rngs):
