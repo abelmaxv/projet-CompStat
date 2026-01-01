@@ -2,7 +2,6 @@ import jax
 import jax.numpy as jnp
 import jax.random as jr
 from flax import nnx
-from jax.scipy.stats import multivariate_normal
 from typing import NamedTuple
 
 MAX_EPS = 0.5
@@ -29,7 +28,7 @@ class HVAE(nnx.Module):
         self.logit_eps = nnx.Param(param_init["logit_eps"])
         self.logit_beta0 = nnx.Param(param_init["logit_beta0"])
 
-        
+   
     def his(self, n_data, x_bar, rngs):
         """Algorithm 1 in "Hamiltonian Variational Autoencoders", integrate a trajectory of hamiltonian dynamics
 
@@ -57,7 +56,7 @@ class HVAE(nnx.Module):
             # Unwrap carry : 
             rho = carry["rho"]
             z = carry["z"]
-            beta = carry["beta"]
+            sqrt_beta = carry["sqrt_beta"]
             iteration = carry["iteration"]
             
             # Leapfrog integration :
@@ -65,13 +64,13 @@ class HVAE(nnx.Module):
             z = z + epsilon*rho_tilde
             rho_prime = rho_tilde - 0.5*epsilon*self.grad_U(z, n_data, x_bar)
             # Quadratic tempering
-            beta_new = 1/((1-1/jnp.sqrt(beta0))*iteration**2/self.K**2+1/jnp.sqrt(beta0))**2
-            rho = jnp.sqrt(beta/beta_new)*rho_prime
+            sqrt_beta_new = 1/((1-1/jnp.sqrt(beta0))*iteration**2/self.K**2+1/jnp.sqrt(beta0))
+            rho = sqrt_beta/sqrt_beta_new*rho_prime
 
             carry = {
                 "rho" : rho, 
                 "z" : z, 
-                "beta" : beta_new, 
+                "sqrt_beta" : sqrt_beta_new, 
                 "iteration" : iteration +1
             }
             return carry, z
@@ -79,7 +78,7 @@ class HVAE(nnx.Module):
         init = {
             "rho" : rho0,
             "z" : z0, 
-            "beta" : beta0, 
+            "sqrt_beta" : jnp.sqrt(beta0), 
             "iteration" : 1
         }
         # Integrate Hamiltonian equation using jax.lax.scan
@@ -102,8 +101,9 @@ class HVAE(nnx.Module):
         Delta = self.Delta[...]
         log_sigma = self.log_sigma[...]
         
-        grad_U = z + n_data*(z+Delta - x_bar)/jnp.exp(2*log_sigma)
+        grad_U = z + (n_data*(z+Delta) - x_bar)/jnp.exp(2*log_sigma)
         return grad_U
+
 
     def __call__(self, n_data, x_bar, rngs) -> HVAEOutput:
         """Returns a named tuple with all elements for elbo computation by the trainer class
