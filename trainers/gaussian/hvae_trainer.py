@@ -52,7 +52,7 @@ class HVAE_trainer():
         optimizer: nnx.Optimizer,
         data: jax.Array,
         rngs: nnx.Rngs
-    ) -> tuple[jax.Array, nnx.Gradients]:
+    ) -> tuple[jax.Array, nnx.State]:
         """Compute one step of optimizing the loss function with respect to the model's parameters
 
         Args:
@@ -62,7 +62,7 @@ class HVAE_trainer():
             rngs (nnx.Rngs): random number generator
 
         Returns:
-            tuple[jax.Array, nnx.Gradients]: value and gradients of the loss function at the current step
+            tuple[jax.Array, nnx.State]: value and gradients of the loss function at the current step
         """
         val_and_grad_fn = nnx.value_and_grad(self.compute_loss)
         val, grads = val_and_grad_fn(model, data, rngs)
