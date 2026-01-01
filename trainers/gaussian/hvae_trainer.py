@@ -30,7 +30,7 @@ class HVAE_trainer():
         out = model(n_data, x_bar, rngs)
 
          # log p(D,z_K)
-        term1 = jnp.sum(jax.vmap(lambda x : multivariate_normal.logpdf(x, out.zK + out.Delta, jnp.diag(jnp.exp(2*out.log_sigma))))(data))
+        term1 = jnp.sum(jax.vmap(lambda x : multivariate_normal.logpdf(x, out.zK + out.Delta, jnp.diag(jnp.exp(2*out.log_sigma))))(data))+ multivariate_normal.logpdf(out.zK, jnp.zeros(dim), jnp.eye(dim))
         # log N(\rho_K| 0, I)
         term2 = multivariate_normal.logpdf(out.rhoK, jnp.zeros(shape = (dim,)), jnp.eye(dim))
         # l/2*log(\beta_0) 

@@ -106,7 +106,7 @@ class HVAE(nnx.Module):
         Delta = self.Delta[...]
         log_sigma = self.log_sigma[...]
         
-        grad_U = z + (n_data*(z+Delta) - x_bar)/jnp.exp(2*log_sigma)
+        grad_U = z + n_data*(z+Delta - x_bar)/jnp.exp(2*log_sigma)
         return grad_U
 
 
