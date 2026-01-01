@@ -3,6 +3,7 @@ import jax
 import jax.numpy as jnp
 import jax.random as jr
 from jax.scipy.stats import multivariate_normal
+from models.gaussian.hvae import HVAE
 
 
 class HVAE_trainer():
@@ -10,7 +11,8 @@ class HVAE_trainer():
         self.model = model
         self.optimizer = optimizer
     
-    def compute_loss(self, model, data, rngs ):
+    def compute_loss(self, model, data, rngs):
+
         n_data = data.shape[0]
         x_bar = jnp.mean(data, axis=0)
         dim = model.dim
@@ -33,9 +35,10 @@ class HVAE_trainer():
         # Return the oposite of ELBO to maximize ELBO
         return -elbo
 
-
-    def train_step(self, data, rngs):
-        grad_fn = nnx.grad(self.compute_loss)
-        grads = grad_fn(self.model, data, rngs)
-        self.optimizer.update(self.model, grads)
+    @nnx.jit(static_argnames='self')
+    def train_step(self, model, optimizer, data, rngs):
+        val_and_grad_fn = nnx.value_and_grad(self.compute_loss)
+        val, grads = val_and_grad_fn(model, data, rngs)
+        optimizer.update(model, grads)
+        return val, grads
  
