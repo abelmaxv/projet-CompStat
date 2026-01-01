@@ -18,7 +18,7 @@ class HVAEOutput(NamedTuple):
 
 class HVAE(nnx.Module):
 
-    def __init__(self, dim, K, param_init):
+    def __init__(self, dim: int, K: int, param_init: dict):
         self.dim = dim
         self.K = K
         
@@ -29,17 +29,22 @@ class HVAE(nnx.Module):
         self.logit_beta0 = nnx.Param(param_init["logit_beta0"])
 
    
-    def his(self, n_data, x_bar, rngs):
+    def his(
+        self, 
+        n_data: int, 
+        x_bar: jnp.ndarray, 
+        rngs: nnx.Rngs
+    ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
         """Algorithm 1 in "Hamiltonian Variational Autoencoders", integrate a trajectory of hamiltonian dynamics
 
-        Args:
-            n_data (int): number of data points
-            x_bar (jnp.array): barycenter of the dataset
-            rngs (nnx.rnglib.Rngs): Random number generator
+            Args:
+                n_data (int): number of data points
+                x_bar (jnp.ndarray): barycenter of the dataset
+                rngs (nnx.Rngs): Random number generator
 
-        Returns:
-            tuple : z0, rho0, z_K, rho_K
-        """
+            Returns:
+                tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]: z0, rho0, z_K, rho_K
+            """
         logit_beta0 = self.logit_beta0[...]
         logit_eps = self.logit_eps[...]
         epsilon = jax.nn.sigmoid(logit_eps)*MAX_EPS
@@ -91,9 +96,9 @@ class HVAE(nnx.Module):
         """Computes the gradient of the energy of the Hamiltonian system (page 7 "Hamiltonian Variational Autoencoders")
 
         Args:
-            z (jnp.array): state of the system in the latent space
+            z (jnp.ndarray): state of the system in the latent space
             n_data (int): number of data points
-            x_bar (jnp.array): barycenter of the dataset
+            x_bar (jnp.ndarray): barycenter of the dataset
 
         Returns:
             jnp.array : gradient of the energy at the current state
@@ -105,13 +110,13 @@ class HVAE(nnx.Module):
         return grad_U
 
 
-    def __call__(self, n_data, x_bar, rngs) -> HVAEOutput:
+    def __call__(self, n_data: int, x_bar: jnp.ndarray, rngs: nnx.Rngs) -> HVAEOutput:
         """Returns a named tuple with all elements for elbo computation by the trainer class
 
         Args:
             n_data (int): number of data points
-            x_bar (jnp.array):  barycenter of the dataset
-            rngs (nnx.rnglib.Rngs): random number generator
+            x_bar (jnp.ndarray):  barycenter of the dataset
+            rngs (nnx.Rngs): random number generator
 
         Returns:
             HVAEOutput: elements for elbo computation

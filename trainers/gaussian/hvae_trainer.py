@@ -7,11 +7,21 @@ from models.gaussian.hvae import HVAE
 
 
 class HVAE_trainer():
-    def __init__(self, model, optimizer):
+    def __init__(self, model: HVAE, optimizer: nnx.Optimizer):
         self.model = model
         self.optimizer = optimizer
     
-    def compute_loss(self, model, data, rngs):
+    def compute_loss(self, model: HVAE, data: jnp.ndarray, rngs: nnx.Rngs) -> jnp.ndarray:
+        """Compute the loss which is the inverse of the ELBO (given by eq (5) in "Hamiltonian Variational Autoencoders")
+
+        Args:
+            model (HVAE): model to train
+            data (jnp.ndarray): dataset
+            rngs (nnx.Rngs): random number generator
+
+        Returns:
+            jnp.ndarray: inverse of the ELBO
+        """
 
         n_data = data.shape[0]
         x_bar = jnp.mean(data, axis=0)
@@ -36,7 +46,24 @@ class HVAE_trainer():
         return -elbo
 
     @nnx.jit(static_argnames='self')
-    def train_step(self, model, optimizer, data, rngs):
+    def train_step(
+        self,
+        model: HVAE,
+        optimizer: nnx.Optimizer,
+        data: jax.Array,
+        rngs: nnx.Rngs
+    ) -> tuple[jax.Array, nnx.Gradients]:
+        """Compute one step of optimizing the loss function with respect to the model's parameters
+
+        Args:
+            model (HVAE): model to train
+            optimizer (nnx.Optimizer): optimizer used to train 
+            data (jax.Array): dataset
+            rngs (nnx.Rngs): random number generator
+
+        Returns:
+            tuple[jax.Array, nnx.Gradients]: value and gradients of the loss function at the current step
+        """
         val_and_grad_fn = nnx.value_and_grad(self.compute_loss)
         val, grads = val_and_grad_fn(model, data, rngs)
         optimizer.update(model, grads)
