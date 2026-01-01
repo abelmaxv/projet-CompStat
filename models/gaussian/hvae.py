@@ -3,8 +3,18 @@ import jax.numpy as jnp
 import jax.random as jr
 from flax import nnx
 from jax.scipy.stats import multivariate_normal
+from typing import NamedTuple
 
 MAX_EPS = 0.5
+
+class HVAEOutput(NamedTuple):
+    z0: jnp.ndarray
+    rho0: jnp.ndarray
+    zK: jnp.ndarray
+    rhoK: jnp.ndarray
+    beta0: float
+    Delta: jnp.ndarray
+    log_sigma: jnp.ndarray
 
 
 class HVAE(nnx.Module):
@@ -95,36 +105,24 @@ class HVAE(nnx.Module):
         grad_U = z + n_data*(z+Delta - x_bar)/jnp.exp(2*log_sigma)
         return grad_U
 
-
-    def elbo(self, data, rngs):
-        """Computes the estimation of the ELBO
+    def __call__(self, n_data, x_bar, rngs) -> HVAEOutput:
+        """Returns a named tuple with all elements for elbo computation by the trainer class
 
         Args:
-            data (jnp.array): dataset
+            n_data (int): number of data points
+            x_bar (jnp.array):  barycenter of the dataset
             rngs (nnx.rnglib.Rngs): random number generator
 
         Returns:
-            jnp.array: estimator of the ELBO
+            HVAEOutput: elements for elbo computation
         """
-        n_data = data.shape[0]
-        x_bar = jnp.mean(data, axis = 0)
-        beta0 = jax.nn.sigmoid(self.logit_beta0.get_value())
-        Delta = self.Delta[...]
-        log_sigma = self.log_sigma[...]
-        z0, rho0, zK, rhoK  = self.his(n_data, x_bar, rngs)
-
-        # log p(D,z_K)
-        term1 = jnp.sum(jax.vmap(lambda x : multivariate_normal.logpdf(x, zK + Delta, jnp.diag(jnp.exp(2*log_sigma))))(data))
-        # log N(\rho_K| 0, I)
-        term2 = multivariate_normal.logpdf(rhoK, jnp.zeros(shape = (self.dim,)), jnp.eye(self.dim))
-        # l/2*log(\beta_0) 
-        term3 = 0.5*self.dim*jnp.log(beta0)
-        # log N(z_0| 0, I)
-        term4 = multivariate_normal.logpdf(z0, jnp.zeros(shape = (self.dim,)), jnp.eye(self.dim))
-        # log N(\rho_0| 0, \beta_0^{-1}I)
-        term5 = multivariate_normal.logpdf(rho0, jnp.zeros(shape = (self.dim,)), 1/beta0*jnp.eye(self.dim))
-
-        return term1 + term2 + term3 - term4 - term5
+        z0, rho0, zK, rhoK = self.his(n_data, x_bar, rngs)
+        return HVAEOutput(
+            z0=z0, rho0=rho0, zK=zK, rhoK=rhoK,
+            beta0=jax.nn.sigmoid(self.logit_beta0[...]),
+            Delta=self.Delta[...],
+            log_sigma=self.log_sigma[...]
+        )
 
 
 
