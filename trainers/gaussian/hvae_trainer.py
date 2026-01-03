@@ -33,14 +33,12 @@ class HVAE_trainer():
         term1 = jnp.sum(jax.vmap(lambda x : multivariate_normal.logpdf(x, out.zK + out.Delta, jnp.diag(jnp.exp(2*out.log_sigma))))(data))+ multivariate_normal.logpdf(out.zK, jnp.zeros(dim), jnp.eye(dim))
         # log N(\rho_K| 0, I)
         term2 = multivariate_normal.logpdf(out.rhoK, jnp.zeros(shape = (dim,)), jnp.eye(dim))
-        # l/2*log(\beta_0) 
-        term3 = 0.5*dim*jnp.log(out.beta0)
         # log N(z_0| 0, I)
-        term4 = multivariate_normal.logpdf(out.z0, jnp.zeros(shape = (dim,)), jnp.eye(dim))
+        term3 = multivariate_normal.logpdf(out.z0, jnp.zeros(shape = (dim,)), jnp.eye(dim))
         # log N(\rho_0| 0, \beta_0^{-1}I)
-        term5 = multivariate_normal.logpdf(out.rho0, jnp.zeros(shape = (dim,)), 1/out.beta0*jnp.eye(dim))
+        term4 = multivariate_normal.logpdf(out.rho0, jnp.zeros(shape = (dim,)), jnp.eye(dim))
 
-        elbo = term1 + term2 + term3 - term4 - term5
+        elbo = term1 + term2 - term3 - term4
 
         # Return the oposite of ELBO to maximize ELBO
         return -elbo
