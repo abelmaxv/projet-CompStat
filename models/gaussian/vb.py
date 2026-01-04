@@ -14,7 +14,7 @@ class VBOutput(NamedTuple):
 class VB(nnx.Module):
 
     def __init__(self, dim: int, param_init: dict):
-        self.dim = dim
+        self.dim = int(dim)
         
         # Model's parameters
         self.Delta = nnx.Param(param_init["Delta"])
@@ -50,11 +50,3 @@ class VB(nnx.Module):
             mu_z = self.mu_z[...],
             log_sigma_z= self.log_sigma_z[...]
         )
-
-
-
-
-
-
-
-

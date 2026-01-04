@@ -51,8 +51,9 @@ class HVAE(nnx.Module):
         beta0 = jax.nn.sigmoid(logit_beta0)
 
         # Initialize values
-        z0 = jr.normal(rngs.params(), shape = (self.dim,))
-        gamma0 = jr.normal(rngs.params(), shape = (self.dim,))
+        key_z, key_gamma = jr.split(rngs.params())
+        z0 = jr.normal(key_z, (self.dim,))
+        gamma0 = jr.normal(key_gamma, (self.dim,))
         rho0 = gamma0/jnp.sqrt(beta0)
 
 
