@@ -1,7 +1,6 @@
 import sys
 import os
 from pathlib import Path
-from unittest import result
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -42,18 +41,31 @@ def main(dim, n_data, n_test, n_iter, rngs):
 
     datasets = generate_data(rngs.param(), dim, n_data, n_test, Delta_gt, sigma_gt)
 
+    # Initialization parameters
+    init_eps = 0.005 * jnp.ones(dim)
+    max_eps = 0.5 * jnp.ones(dim)
+    init_logit_eps = jnp.log(init_eps/(max_eps - init_eps))
+
+    init_logit_beta0 = 1/jnp.log(4.)
+
+    init_Delta = jnp.zeros(shape =(dim,))
+    init_log_sigma = 3* jnp.ones(shape = (dim,))
+
+    init_mu_z = jnp.zeros(shape = (dim,))
+    init_log_sigma_z = jnp.ones(shape = (dim,))
+
     # Create model :
     init_params_vb = {
-        "Delta" : jnp.zeros(shape = (dim,)),
-        "log_sigma" : jnp.ones(shape = (dim,)),
-        "mu_z" : jnp.zeros(shape = (dim,)),
-        "log_sigma_z" : jnp.zeros(shape = (dim,))
+        "Delta" : init_Delta,
+        "log_sigma" : init_log_sigma,
+        "mu_z" : init_mu_z,
+        "log_sigma_z" : init_log_sigma_z
     }
     init_params_hvae = {
-        "Delta" : jnp.zeros(shape = (dim,)),
-        "log_sigma" : jnp.ones(shape = (dim,)),
-        "logit_eps" : jnp.zeros(shape = (dim,)),
-        "logit_beta0" : jnp.zeros(shape = (1,))
+        "Delta" : init_Delta,
+        "log_sigma" : init_log_sigma,
+        "logit_eps" : init_logit_eps,
+        "logit_beta0" : init_logit_beta0
     }
     VB_model = VB(dim = dim, param_init=init_params_vb)
     HVAE1_model = HVAE(dim = dim, K = 1, param_init = init_params_hvae)
