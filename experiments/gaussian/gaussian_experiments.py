@@ -1,5 +1,6 @@
 import sys
 import os
+import numpy as np
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -16,6 +17,7 @@ from models.gaussian.hvae import HVAE
 from trainers.gaussian.hvae_trainer import HVAE_trainer
 from tqdm import tqdm
 import json
+from joblib import Parallel, delayed
 
 def generate_data(key, dim, n_data, n_test, Delta_gt, sigma_gt, ):
     def generate_one_dataset(key):
@@ -84,7 +86,7 @@ def main(dim, n_data, n_test, n_iter, rngs):
     # Initialize accumulators for mean errors of all models
     out = {
         "Delta_gt" : Delta_gt, 
-        "Sigma_gt" : sigma_gt,
+        "sigma_gt" : sigma_gt,
         "VB": {
             "Delta" : [],
             "sigma" : [],
@@ -121,12 +123,22 @@ def main(dim, n_data, n_test, n_iter, rngs):
         out["HVAE10"]["sigma"].append(jnp.exp(HVAE10_model.log_sigma[...]))
     return out
 
-
+def to_json_ready(obj):
+    """Recursively converts JAX/NumPy arrays to Python lists."""
+    if isinstance(obj, dict):
+        return {k: to_json_ready(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [to_json_ready(x) for x in obj]
+    elif hasattr(obj, "tolist"):  # Matches JAX arrays and NumPy arrays
+        return obj.tolist()
+    elif isinstance(obj, (np.float32, np.float64, np.int32, np.int64)):
+        return obj.item()
+    return obj
 
 
 if __name__ == "__main__":
 
-    n_test = 10
+    n_test = 1
     n_data = 10000
     n_iter = 30000
     dimensions = [1, 2, 3, 5, 11, 25, 51, 101, 201, 301]
@@ -147,10 +159,12 @@ if __name__ == "__main__":
 
     for dim in dimensions : 
         out = main(dim, n_data, n_test, n_iter, rngs)
+        results["Delta_gt"].append(out["Delta_gt"])
+        results["sigma_gt"].append(out["sigma_gt"])
         for key in results.keys():
             results["VB"][str(dim)] = out["VB"]
             results["HVAE1"][str(dim)] = out["HVAE1"]
             results["HVAE10"][str(dim)] = out["HVAE10"]
 
     with open('experiments/gaussian/results.json', 'w') as f:
-        json.dump(results, f)
+        json.dump(to_json_ready(results), f)
