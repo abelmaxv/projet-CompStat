@@ -2,6 +2,7 @@ import jax
 import jax.numpy as jnp
 import jax.random as jr
 from flax import nnx
+from jax.scipy.stats import multivariate_normal
 from typing import NamedTuple
 
 MAX_EPS = 0.5
@@ -11,22 +12,23 @@ class HVAEOutput(NamedTuple):
     rho0: jnp.ndarray
     zK: jnp.ndarray
     rhoK: jnp.ndarray
-    beta0: float
     Delta: jnp.ndarray
     log_sigma: jnp.ndarray
 
 
 class HVAE(nnx.Module):
 
-    def __init__(self, dim: int, K: int, param_init: dict):
+    def __init__(self, dim: int, K: int, param_init: dict, tempering : bool = True ):
         self.dim = dim
+        self.tempering = tempering
         self.K = K
         
         # Model's parameters
         self.Delta = nnx.Param(param_init["Delta"])
         self.log_sigma = nnx.Param(param_init["log_sigma"])
         self.logit_eps = nnx.Param(param_init["logit_eps"])
-        self.logit_beta0 = nnx.Param(param_init["logit_beta0"])
+        if tempering : 
+            self.logit_beta0 = nnx.Param(param_init["logit_beta0"])
 
    
     def his(
@@ -45,10 +47,13 @@ class HVAE(nnx.Module):
             Returns:
                 tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]: z0, rho0, z_K, rho_K
             """
-        logit_beta0 = self.logit_beta0[...]
         logit_eps = self.logit_eps[...]
         epsilon = jax.nn.sigmoid(logit_eps)*MAX_EPS
-        beta0 = jax.nn.sigmoid(logit_beta0)
+        if self.tempering: 
+            logit_beta0 = self.logit_beta0[...]
+            beta0 = jax.nn.sigmoid(logit_beta0)
+        else : 
+            beta0 = jnp.array(1.)
 
         # Initialize values
         key_z, key_gamma = jr.split(rngs.params())
@@ -70,8 +75,12 @@ class HVAE(nnx.Module):
             z = z + epsilon*rho_tilde
             rho_prime = rho_tilde - 0.5*epsilon*self.grad_U(z, n_data, x_bar)
             # Quadratic tempering
-            sqrt_beta_new = 1/((1-1/jnp.sqrt(beta0))*iteration**2/self.K**2+1/jnp.sqrt(beta0))
-            rho = sqrt_beta/sqrt_beta_new*rho_prime
+            if self.tempering : 
+                sqrt_beta_new = 1/((1-1/jnp.sqrt(beta0))*iteration**2/self.K**2+1/jnp.sqrt(beta0))
+                rho = sqrt_beta/sqrt_beta_new*rho_prime
+            else : 
+                sqrt_beta_new = jnp.array(1.)
+                rho = rho_prime
 
             carry = {
                 "rho" : rho, 
@@ -88,9 +97,22 @@ class HVAE(nnx.Module):
             "iteration" : 1
         }
         # Integrate Hamiltonian equation using jax.lax.scan
-        carry, _ = jax.lax.scan(his_step, init, jnp.arange(self.K))
+        carry, zs = jax.lax.scan(his_step, init, jnp.arange(self.K))
         zK, rhoK = carry["z"], carry["rho"] 
-        return z0, rho0, zK, rhoK
+        return z0, rho0, zK, rhoK, zs
+
+    def U(self, z : jnp.ndarray, data : jnp.ndarray)->jnp.ndarray:
+        """Computes the energy of the model at a given position
+
+        Args:
+            z (jnp.ndarray): letent variable
+            data (jnp.ndarray): dataset
+
+        Returns:
+            jnp.ndarray: energy U(z|D)
+        """
+        energy = jnp.sum(jax.vmap(lambda x : multivariate_normal.logpdf(x, z + self.Delta[...], jnp.diag(jnp.exp(2*self.log_sigma[...]))))(data))+ multivariate_normal.logpdf(z, jnp.zeros(self.dim), jnp.eye(self.dim))
+        return energy
 
 
     def grad_U(self, z, n_data, x_bar):
@@ -107,7 +129,7 @@ class HVAE(nnx.Module):
         Delta = self.Delta[...]
         log_sigma = self.log_sigma[...]
         
-        grad_U = z + n_data*(z+Delta - x_bar)/jnp.exp(2*log_sigma)
+        grad_U = z + n_data*(z + Delta - x_bar)/jnp.exp(2*log_sigma)
         return grad_U
 
 
@@ -122,10 +144,9 @@ class HVAE(nnx.Module):
         Returns:
             HVAEOutput: elements for elbo computation
         """
-        z0, rho0, zK, rhoK = self.his(n_data, x_bar, rngs)
+        z0, rho0, zK, rhoK, _ = self.his(n_data, x_bar, rngs)
         return HVAEOutput(
             z0=z0, rho0=rho0, zK=zK, rhoK=rhoK,
-            beta0=jax.nn.sigmoid(self.logit_beta0[...]),
             Delta=self.Delta[...],
             log_sigma=self.log_sigma[...]
         )
