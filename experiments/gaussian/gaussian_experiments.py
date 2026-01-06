@@ -15,9 +15,10 @@ from models.gaussian.vb import VB
 from trainers.gaussian.vb_trainer import VB_trainer
 from models.gaussian.hvae import HVAE
 from trainers.gaussian.hvae_trainer import HVAE_trainer
+from models.gaussian.iwhvae import IWHVAE
+from trainers.gaussian.iwhvae_trainer import IWHVAE_trainer
 from tqdm import tqdm
 import json
-from joblib import Parallel, delayed
 
 def generate_data(key, dim, n_data, n_test, Delta_gt, sigma_gt, ):
     def generate_one_dataset(key):
@@ -72,6 +73,7 @@ def main(dim, n_data, n_test, n_iter, rngs):
     VB_model = VB(dim = dim, param_init=init_params_vb)
     HVAE1_model = HVAE(dim = dim, K = 1, param_init = init_params_hvae)
     HVAE10_model = HVAE(dim = dim, K = 10, param_init = init_params_hvae)
+    IWHVAE_model = IWHVAE(dim = dim, K = 1, L = 10, param_init = init_params_hvae)
 
     # Create optimizers and trainers for VB, HVAE1, and HVAE10
     VB_optimizer = nnx.Optimizer(VB_model, optax.rmsprop(learning_rate=1e-3), wrt=nnx.Param)
@@ -82,6 +84,9 @@ def main(dim, n_data, n_test, n_iter, rngs):
 
     HVAE10_optimizer = nnx.Optimizer(HVAE10_model, optax.rmsprop(learning_rate=1e-3), wrt=nnx.Param)
     HVAE10_trainer_instance = HVAE_trainer(HVAE10_model, HVAE10_optimizer)
+
+    IWHVAE_optimizer = nnx.Optimizer(IWHVAE_model, optax.rmsprop(learning_rate=1e-3), wrt=nnx.Param)
+    IWHVAE_trainer_instance = HVAE_trainer(IWHVAE_model, IWHVAE_optimizer)
 
     # Initialize accumulators for mean errors of all models
     out = {
@@ -99,6 +104,10 @@ def main(dim, n_data, n_test, n_iter, rngs):
             "Delta" : [],
             "sigma" : [],
         },
+        "IWHVAE" : {
+            "Delta" : [], 
+            "sigma" : [],
+        }
     }
 
     for i in range(n_test):
@@ -121,6 +130,12 @@ def main(dim, n_data, n_test, n_iter, rngs):
             val, grad = HVAE10_trainer_instance.train_step(HVAE10_model, HVAE10_optimizer, datasets[i], rngs)
         out["HVAE10"]["Delta"].append(HVAE10_model.Delta[...])
         out["HVAE10"]["sigma"].append(jnp.exp(HVAE10_model.log_sigma[...]))
+
+        # Train IWHVAE model
+        for j in tqdm(range(n_iter), desc="IWHVAE"):
+            val, grad = IWHVAE_trainer_instance.train_step(IWHVAE_model, IWHVAE_optimizer, datasets[i], rngs)
+        out["IWHVAE"]["Delta"].append(IWHVAE_model.Delta[...])
+        out["IWHVAE"]["sigma"].append(jnp.exp(IWHVAE_model.log_sigma[...]))
     return out
 
 def to_json_ready(obj):
@@ -154,6 +169,8 @@ if __name__ == "__main__":
         "HVAE1": {
         },
         "HVAE10": {
+        },
+        "IWHVAE":{
         }
     }
 
@@ -165,6 +182,7 @@ if __name__ == "__main__":
             results["VB"][str(dim)] = out["VB"]
             results["HVAE1"][str(dim)] = out["HVAE1"]
             results["HVAE10"][str(dim)] = out["HVAE10"]
+            results["IWHVAE"][str(dim)] = out["IWHVAE"]
 
     with open('experiments/gaussian/results.json', 'w') as f:
         json.dump(to_json_ready(results), f)
