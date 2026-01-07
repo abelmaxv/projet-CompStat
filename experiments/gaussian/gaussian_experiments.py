@@ -153,7 +153,7 @@ def to_json_ready(obj):
 
 if __name__ == "__main__":
 
-    n_test = 1
+    n_test = 10
     n_data = 10000
     n_iter = 30000
     dimensions = [1, 2, 3, 5, 11, 25, 51, 101, 201, 301]
