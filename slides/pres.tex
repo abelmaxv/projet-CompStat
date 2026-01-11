@@ -1,0 +1,332 @@
+\documentclass[8pt]{beamer}
+
+\usetheme[progressbar=frametitle]{metropolis}
+\usepackage{appendixnumberbeamer}
+
+% Set background color to white
+\setbeamercolor{background canvas}{bg=white}
+
+\usepackage[french]{babel} 
+
+% Additional math symbols
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\B}{\mathcal{B}}
+\newcommand{\X}{\mathcal{X}}
+\newcommand{\Q}{\mathcal{Q}}
+\newcommand{\C}{\mathcal{C}}
+\newcommand{\A}{\mathcal{A}}
+\newcommand{\M}{\mathcal{M}}
+\newcommand{\QQ}{\mathbb{Q}}
+\newcommand{\LL}{\mathcal{L}}
+\newcommand{\ELBO}{\mathcal{L}_{ELBO}}
+
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{booktabs}
+\usepackage[scale=2]{ccicons}
+\usepackage{mdframed}
+\usepackage{subcaption}
+\usepackage{graphicx}
+
+% Define colored box for definitions using mdframed
+\mdfdefinestyle{definitionstyle}{
+    backgroundcolor=blue!5,
+    linecolor=blue!50!black,
+    linewidth=2pt,
+    leftline=true,
+    topline=false,
+    bottomline=false,
+    rightline=false,
+    innertopmargin=5pt,
+    innerbottommargin=5pt,
+    innerrightmargin=5pt,
+    innerleftmargin=8pt
+}
+
+\mdfdefinestyle{theoremstyle}{
+    backgroundcolor=red!5,
+    linecolor=red!50!black,
+    linewidth=2pt,
+    leftline=true,
+    topline=false,
+    bottomline=false,
+    rightline=false,
+    innertopmargin=5pt,
+    innerbottommargin=5pt,
+    innerrightmargin=5pt,
+    innerleftmargin=8pt
+}
+
+\mdfdefinestyle{remarkstyle}{
+    backgroundcolor=gray!10,
+    linecolor=gray!50!black,
+    linewidth=2pt,
+    leftline=true,
+    topline=false,
+    bottomline=false,
+    rightline=false,
+    innertopmargin=5pt,
+    innerbottommargin=5pt,
+    innerrightmargin=5pt,
+    innerleftmargin=8pt
+}
+
+\newmdenv[style=definitionstyle]{definitionbox}
+\newmdenv[style=theoremstyle]{theorembox}
+\newmdenv[style=remarkstyle]{remarkbox}
+
+
+\title{Hamiltonian Variational Auto-Encoder}
+\subtitle{Soutenance Statistiques Computationnelles - MVA}
+\author{Abel Verley et Rémi Baron}
+\date{}
+
+\begin{document}
+    \maketitle
+
+
+    \begin{frame}{Objectifs du papier}
+    
+        \hfill
+        
+        \begin{remarkbox}
+            \textbf{VAE :}
+            \begin{enumerate}
+                \item Variable latente : $p_\theta(x) = \int p_\theta(x, z)dz$
+                \item $\LL(\theta, x) \ge \ELBO(\theta, \phi,x) = \E_{u \sim q_\phi(u|x)}[\log \hat p_{\theta, \phi}(x)]$ où $\hat p_{\theta, \phi}(x)$ estimateur non biaisé.
+            \end{enumerate}
+        \end{remarkbox}
+        
+        \hfill
+        \pause
+        
+        \begin{remarkbox}
+            \textbf{Objectif de \cite{cateriniHamiltonianVariationalAutoEncoder2018}} : Introduire un estimateur non biaisé $\hat p_{\theta, \phi}(x)$ 
+            \begin{enumerate}
+                \item De faible variance
+                \item Sujet au \og reparametrization trick \fg
+            \end{enumerate}
+        \end{remarkbox}
+
+        \begin{align*}
+            \nabla_{\phi} \E_{z \sim p_\phi(z)}[f(z)] &= \nabla_\phi \E_{\varepsilon \sim p(\epsilon)}[f(h(\phi, \varepsilon)] &\text{où } z \sim h(\phi, \varepsilon) \\
+            &= \E_{\varepsilon \sim p(\varepsilon)}[\nabla_\phi f(h(\phi, \varepsilon))] \\
+            &\approx \nabla_\phi f(h(\phi, \varepsilon))
+        \end{align*}
+    \end{frame}
+
+    \begin{frame}{Estimation par échantillonnage préférentiel}
+    
+        Pour estimer $\theta$, on peut appliquer les méthodes d'estimation d’espérance : 
+        \begin{align*}
+            p_\theta(x) = \int p_\theta(x |z) p(z)dz  = \E_{z \sim p(z)}[p_\theta(z|x)]
+        \end{align*}
+        
+        \hfill
+        \pause
+        
+        \begin{remarkbox}
+            \textbf{Estimation par échantillonnage préférentiel \cite{burdaImportanceWeightedAutoencoders2016}:} Méthode pour réduire la variance d'estimateur de Monte Carlo
+            \begin{equation*}
+                \hat p_{\theta, \phi}(x) = \frac{1}{L} \sum_{i = 1}^L \frac{p_\theta(x |z_i)p(z_i)}{q_\phi(z_i|x)} \qquad z_i \sim q_\phi(z|x)
+            \end{equation*}
+        \end{remarkbox}
+
+        \hfill 
+        \pause
+        
+        \begin{remarkbox}
+            \textbf{Monte Carlo Séquentiel \cite{del2006sequential}} Variante de l'échantillonnage préférentiel 
+            \begin{equation*}
+                \hat p_{\theta,\phi}(x) = \frac{1}{L}\sum_{i = 1}^L \frac{p_\theta(x|z_K^i)p(z_K^i)\prod_{k =0}^{K-1}r^k(z_k^i|z_{k+1}^i)}{q_\phi^0(z_0^i|x)\prod_{k=1}^Kq_\phi^k(z_k^i|z_{k-1}^i,x)} \qquad z_0^i, \dots, z_K^i \sim q_\phi(z_0, \dots, z_K |x)
+            \end{equation*}
+        \end{remarkbox}
+
+        \hfill
+
+        Le papier utilise $L = 1$ mais nous avons testé l'influence de ce paramètre dans notre implémentation. 
+
+        \hfill
+        
+    \end{frame}
+
+    \begin{frame}{Choix des noyaux de transition}
+        Le choix de $q_\phi(z_0, \dots, z_K)$ correspond à la simulation de dynamique hamiltonienne avec un \og tempering \fg \cite{wolfVariationalInferenceHamiltonian2016}
+        \begin{equation*}
+            \begin{cases}
+                \frac{dz}{dt} = \nabla_\rho \mathcal{H} \\
+                \frac{d\rho}{dt} = -\nabla_z \mathcal{H} \\
+                \mathcal{H}(z, \rho |x) = - \log(p_\theta(x,z)) + \frac{1}{2}\|\rho\|^2
+            \end{cases}
+        \end{equation*}
+
+        \pause
+
+        \hfill
+
+        \begin{theorembox}
+        \textbf{Théorème \cite{cateriniHamiltonianVariationalAutoEncoder2018, del2006sequential}}
+        Lorsque $q_\phi(z_0, \dots, z_K)$ est fixé, le noyau suivant minimise la variance de $\hat p_{\theta, \phi}(x)$ :
+            \begin{equation*}
+                r^{k,opt}_\phi(z_k | z_{k+1},x) = \frac{q_\phi^k(z_k|x)q_\phi^{k+1}(z_{k+1}|z_k,x)}{q_\phi^{k+1}(z_{k+1}|x)}
+            \end{equation*}
+            Ce qui donne l'estimateur suivant : 
+            \begin{equation*}
+                \hat p_{\theta, \phi}(x) = \frac{p_\theta(x,z_K)}{q_\phi^K(z_K|x)}
+            \end{equation*}
+        \end{theorembox}
+
+        
+
+    \end{frame}
+
+    \begin{frame}{Estimateur final de \cite{cateriniHamiltonianVariationalAutoEncoder2018}}
+
+        \begin{remarkbox}
+            \textbf{Estimateur proposé\footnote{avec un tempering bien choisi} par \cite{cateriniHamiltonianVariationalAutoEncoder2018} :}
+            \begin{equation}
+                \hat p_{\theta, \phi}(x) = \frac{p_\theta(x, z_K)\mathcal{N}(\rho_K|0, I_d)}{q^0(z_0, \rho_0)\mathcal{N}(\rho_0|0, I_d)}
+            \end{equation}
+            Puisque $z_k, \rho_k$ résulte de l'application d'un difféomorphisme sur $z_0, \rho_0$, l'estimateur est sujet au reparametrization trick.
+        \end{remarkbox}
+    \end{frame}
+
+    \begin{frame}{Partie expérimentale : Modèle gaussien}
+
+        On considère le modèle génératif suivant :
+    
+        \[
+        z \sim \mathcal{N}(0, I),
+        \qquad
+        \]
+        \[
+        x_i \mid z \sim \mathcal{N}(z + \Delta, \Sigma)
+        \ \text{indépendants,}\ i \in [1,N].
+        \]
+    
+        Les paramètres du modèle sont donc
+    \[
+    \theta \equiv \{\Sigma, \Delta\},
+    \]
+    o\`u
+    \[
+    \Sigma = \mathrm{diag}\bigl(\sigma_1^2, \ldots, \sigma_d^2\bigr)
+    \quad \text{et} \quad
+    \Delta \in \mathbb{R}^d.
+    \] 
+    \end{frame}
+
+    \begin{frame}{Partie expérimentale : Résultats}
+
+    \begin{figure}
+      \centering
+      \begin{subfigure}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{LeurTheta.jpg}
+        \caption{Résultats du papier}
+        \label{fig:img1}
+      \end{subfigure}\hfill
+      \begin{subfigure}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{NotreTheta.jpeg}
+        \caption{Nos résultats \footnote{https://github.com/abelmaxv/projet-CompStat}}
+        \label{fig:img2}
+      \end{subfigure}
+    
+      \caption{Moyenne de \(\|\theta - \hat{\theta}\|_2^2\) pour plusieurs m\'ethodes variationnelles et diff\'erents choix de dimension \(d\), o\`u \(\hat{\theta}\) d\'esigne le maximiseur estim\'e de l'ELBO pour chaque m\'ethode et \(\theta\) le vrai param\`etre.
+}
+      \label{fig:twoimages}
+    \end{figure}
+
+
+    \end{frame}
+
+    \begin{frame}{Partie expérimentale : Critiques concernant $\Delta$ et $\Sigma$}
+
+    \begin{figure}
+      \centering
+      \begin{subfigure}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{NotreDelta.jpeg}
+        \caption{Moyenne de \(\|\Delta - \hat{\Delta}\|_2^2\)}
+        \label{fig:img1}
+      \end{subfigure}\hfill
+      \begin{subfigure}{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{NotreSigma.jpeg}
+        \caption{Moyenne de \(\|\Sigma - \hat{\Sigma}\|_2^2\)}
+        \label{fig:img2}
+      \end{subfigure}
+      \label{fig:twoimages}
+    \end{figure}
+        
+    \end{frame}
+
+    \begin{frame}{}
+        \Huge Merci pour votre attention
+    \end{frame}
+
+
+    \section*{Bibliographie}
+    \begin{frame}{Bibliographie}
+        \bibliographystyle{apalike}
+        \bibliography{CompStat}
+    \end{frame}
+
+    \section{Annexe}
+    
+    \appendix
+
+    \begin{frame}{Paramètres de l'implémentation}
+    \begin{enumerate}
+        \item $n_{test} = 10$ (nombre d’expériences effectuées)
+        \item $n_{iter} = 30.000$ (nombre d'étapes d'optimisation)
+        \item $n_{data} = 10.000$ (nombre de données générées)
+        \item $dimensions = 1;2;3;11;25; 51;101;201;301$
+        \item $\Delta_{gt} = \left(-\frac{d-1}{10}, \dots, \frac{d-1}{10}\right)$
+        \item $\Sigma_{gt} = Diag(1, \dots, 0.1, \dots, 1)$
+    \end{enumerate}
+
+        
+    \end{frame}
+
+    \begin{frame}{Integrateur tempéré leapfrog de la dynamique hamiltonienne}
+         \begin{algorithm}[H]
+        \caption{Tempered leapfrog integration of Hamiltonian dynamics \cite{cateriniHamiltonianVariationalAutoEncoder2018}}
+        \label{alg:leapfrog}
+        \begin{algorithmic}[1]
+            \Require $0 < \beta_0 < \dots < \beta_k = 1$
+            \State Sample $z_0\sim q_\phi^0(z_0,|x)$
+            \State Sample $\rho_0 \sim \mathcal{N}(0, \beta_0^{-1}I_d)$
+            \For{$k = 1$ \textbf{to} $K$}
+                \State $\tilde \rho_k = \rho_{k-1}-\frac{\varepsilon}{2}\nabla U(z_{k-1}|x)$
+                \State $z_k = z_{k-1}+\frac{\varepsilon}{2}\tilde \rho_k$ 
+                \State $\rho_k' = \tilde \rho_k - \frac{\varepsilon}{2} \nabla U(z_k |x) $
+                \State $\rho_k = \sqrt\frac{\beta_k}{\beta_{k-1}} \rho'_k$
+            \EndFor
+        \end{algorithmic}
+        \end{algorithm}
+
+        \begin{equation*}
+            \sqrt{\beta_k} = \left(\left(1-\frac{1}{\sqrt{\beta_0}}\right)\frac{k^2}{K^2}+ \frac{1}{\sqrt{\beta_0}}\right)^{-1}            
+        \end{equation*}
+
+    \end{frame}
+
+    \begin{frame}{Preuve noyau inverse optimal}
+        (Preuve dans \cite{del2006sequential}) Par la loi de la variance totale : 
+        \begin{equation*}
+            Var(\hat p_{\theta,\phi}(x)) = \E[Var(\hat p_{\theta,\phi}(x)|z_k)] + Var(\E[\hat p_{\theta,\phi}(x)|z_k])
+        \end{equation*}
+
+        D'une part le second terme est indépendant de $r^k_\phi$: 
+        \begin{equation*}
+            \E[\hat p_{\theta,\phi}(x)|z_k] = \frac{p_\theta(x, z_K)}{q_\phi^K(z_K)}
+        \end{equation*}
+
+        D'autre part, on peut montrer que le premier terme est nul pour le noyau optimal proposé $r^{opt,k}$
+    \end{frame}
+    
+
+\end{document}
